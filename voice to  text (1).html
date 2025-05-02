@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Speech to Text with Wake Word</title>
+</head>
+<body>
+  <h1>Say "hello" to Start</h1>
+  <button onclick="toggleWakeRecognition()">Toggle Wake Word Listener</button>
+  <button onclick="saveAllText()">Download All</button>
+  <p id="output">Waiting for wake word...</p>
+
+  <script>
+    const output = document.getElementById('output');
+    let fullTranscript = "";
+    let wakeWord = "hello";
+    let isWakeListening = false;
+
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+    if (SpeechRecognition) {
+      const recognition = new SpeechRecognition();
+      recognition.continuous = true;
+      recognition.interimResults = false;
+      recognition.lang = 'en-US';
+
+      recognition.onresult = (event) => {
+        const transcript = event.results[event.results.length - 1][0].transcript.trim().toLowerCase();
+        console.log("Heard:", transcript);
+
+        if (!isWakeListening) return;
+
+        if (transcript.includes(wakeWord)) {
+          output.textContent = "Wake word detected! Listening for input...";
+          recognition.stop();
+          startMainRecognition();
+        } else {
+          output.textContent = "Listening for wake word...";
+        }
+      };
+
+      recognition.onerror = (event) => {
+        console.error('Wake recognition error:', event.error);
+        if (isWakeListening) recognition.start(); // Retry
+      };
+
+      function toggleWakeRecognition() {
+        isWakeListening = !isWakeListening;
+        if (isWakeListening) {
+          output.textContent = 'Listening for wake word...';
+          recognition.start();
+        } else {
+          output.textContent = 'Wake word listening stopped.';
+          recognition.stop();
+        }
+      }
+
+      function startMainRecognition() {
+        const mainRecognition = new SpeechRecognition();
+        mainRecognition.continuous = false;
+        mainRecognition.interimResults = false;
+        mainRecognition.lang = 'en-US';
+
+        mainRecognition.onresult = (event) => {
+          const transcript = event.results[0][0].transcript;
+          fullTranscript += transcript + '\n';
+          output.textContent = "You said: " + transcript;
+
+          // Restart wake recognition
+          if (isWakeListening) recognition.start();
+        };
+
+        mainRecognition.onerror = (event) => {
+          output.textContent = 'Error occurred during main recognition: ' + event.error;
+          if (isWakeListening) recognition.start();
+        };
+
+        mainRecognition.start();
+      }
+
+      function saveAllText() {
+        const blob = new Blob([fullTranscript], { type: 'text/plain' });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = 'transcription.txt';
+        link.click();
+      }
+
+      window.toggleWakeRecognition = toggleWakeRecognition;
+      window.saveAllText = saveAllText;
+
+      // 👇 Automatically start mic on page load
+      window.onload = () => {
+        toggleWakeRecognition();
+      };
+
+    } else {
+      output.textContent = "Sorry, your browser doesn't support Speech Recognition."; 
+    }
+  </script>
+</body>
+</html>
